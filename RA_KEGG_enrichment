@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from pathlib import Path
+import argparse
+import pandas as pd
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.colors import Normalize
+
+
+def plot_kegg_enrichment(df, output_prefix, title, figsize=(5.2, 4.2), dpi=600):
+    mpl.rcParams["pdf.fonttype"] = 42
+    mpl.rcParams["ps.fonttype"] = 42
+    mpl.rcParams["font.family"] = "sans-serif"
+    mpl.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
+
+    df = df.copy()
+    df["RichFactor"] = pd.to_numeric(df["RichFactor"], errors="coerce")
+    df["qvalue"] = pd.to_numeric(df["qvalue"], errors="coerce")
+    df = df.dropna(subset=["Description", "RichFactor", "qvalue", "Diff"]).reset_index(drop=True)
+    df["ypos"] = list(range(len(df)))[::-1]
+
+    marker_map = {"Up": "^", "Down": "v", "up&down": "o", "Up&Down": "o"}
+    df["marker"] = df["Diff"].map(marker_map).fillna("o")
+
+    cmap = plt.cm.RdBu
+    norm = Normalize(vmin=df["qvalue"].max(), vmax=df["qvalue"].min())
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    for mk in sorted(df["marker"].unique()):
+        sub = df[df["marker"] == mk]
+        sc = ax.scatter(
+            sub["RichFactor"], sub["ypos"],
+            c=sub["qvalue"], cmap=cmap, norm=norm,
+            marker=mk, s=24, edgecolors="none", alpha=0.95
+        )
+
+    ax.set_yticks(df["ypos"])
+    ax.set_yticklabels(df["Description"], fontsize=8.5)
+    ax.set_xlabel("Rich factor", fontsize=10)
+    ax.set_title(title, fontsize=10)
+    ax.grid(True, linestyle="-", linewidth=0.5, color="#E6E6E6")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    highlight_terms = {"TNF signaling pathway", "NF-kappa B signaling pathway"}
+    for tick in ax.get_yticklabels():
+        if tick.get_text() in highlight_terms:
+            tick.set_color("red")
+
+    legend_elements = [
+        Line2D([0], [0], marker="^", color="none", markerfacecolor="black",
+               markersize=6, linestyle="None", label="Up"),
+        Line2D([0], [0], marker="o", color="none", markerfacecolor="black",
+               markersize=6, linestyle="None", label="up&down"),
+        Line2D([0], [0], marker="v", color="none", markerfacecolor="black",
+               markersize=6, linestyle="None", label="Down"),
+    ]
+    leg = ax.legend(
+        handles=legend_elements, title="Diff", frameon=False,
+        fontsize=8, title_fontsize=8,
+        loc="upper left", bbox_to_anchor=(1.02, 0.12)
+    )
+    ax.add_artist(leg)
+
+    cbar = fig.colorbar(sc, ax=ax, fraction=0.06, pad=0.18)
+    cbar.set_label("qvalue", fontsize=8)
+    cbar.ax.tick_params(labelsize=8)
+
+    plt.tight_layout()
+    fig.savefig(f"{output_prefix}.pdf", bbox_inches="tight")
+    fig.savefig(f"{output_prefix}.png", dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Plot KEGG enrichment dot plot")
+    parser.add_argument("-i", "--input", required=True, help="Input CSV/TSV file")
+    parser.add_argument("-o", "--output", required=True, help="Output prefix")
+    parser.add_argument("--title", default="Statistics of Pathway Enrichment", help="Plot title")
+    args = parser.parse_args()
+
+    input_path = Path(args.input)
+    if input_path.suffix.lower() in [".tsv", ".txt"]:
+        df = pd.read_csv(input_path, sep="\t")
+    else:
+        df = pd.read_csv(input_path)
+
+    plot_kegg_enrichment(df, args.output, args.title)
+
+
+if __name__ == "__main__":
+    main()
