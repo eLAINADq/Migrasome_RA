@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Single-cell RNA-seq analysis pipeline for RA gut mouse model (KO vs WT)."""
+"""Single-cell RNA-seq analysis pipeline for RA lung mouse model (KO vs WT)."""
 
 import os
 import scanpy as sc
